@@ -271,6 +271,10 @@ void DissectorContext::dispatchMessage(tvbuff_t *tvb, packet_info *pinfo, proto_
                     this->dissect_ofp_meter_mod();
                     break;
 
+                case OFPT_ROLE_STATUS:
+                    this->dissect_ofp_role_status();
+                    break;
+
                 default:
                     IGNORE; // We don't know what to do
             }
@@ -1036,6 +1040,22 @@ void DissectorContext::dissect_ofp_meter_band(proto_tree* parent) {
     }
 }
 
+void DissectorContext::dissect_ofp_role_status() {
+    ADD_TREE(tree, "ofp_role_status");
+
+    READ_UINT32(role);
+    proto_item_append_text(tree, ", New role: %s",
+        val_to_str(role, (value_string*) this->ofp_controller_role->data, "Unknown Role (0x%02x)"));
+
+    ADD_CHILD(tree, "ofp_role_status.role", 4);
+    ADD_CHILD(tree, "ofp_role_status.reason", 1);
+    // skip padding
+    this->_offset += 3;
+    ADD_CHILD(tree, "ofp_role_status.generation_id", 8);
+
+    // TODO: dissect properties if any
+}
+
 void DissectorContext::setupFields() {
     TREE_FIELD("data", "Openflow Protocol");
     FIELD("padding", "Padding", FT_NONE, BASE_NONE, NO_VALUES, NO_MASK);
@@ -1266,6 +1286,11 @@ void DissectorContext::setupFields() {
     FIELD("ofp_meter_band.burst_size", "Burst size", FT_UINT32, BASE_DEC, NO_VALUES, NO_MASK);
     FIELD("ofp_meter_band_dscp_remark.prec_level", "Precedence level", FT_UINT8, BASE_DEC, NO_VALUES, NO_MASK);
     FIELD("ofp_meter_band_experimenter.experimenter", "Experimenter ID", FT_UINT32, BASE_HEX, NO_VALUES, NO_MASK);
+
+    TREE_FIELD("ofp_role_status", "Role Status");
+    FIELD("ofp_role_status.role", "New Role", FT_UINT32, BASE_HEX, VALUES(ofp_controller_role), NO_MASK);
+    FIELD("ofp_role_status.reason", "Reason", FT_UINT8, BASE_HEX, VALUES(ofp_controller_role_reason), NO_MASK);
+    FIELD("ofp_role_status.generation_id", "Generation ID", FT_UINT64, BASE_HEX, NO_VALUES, NO_MASK);
 }
 
 // Generated code
@@ -1459,6 +1484,12 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_controller_role, OFPCR_ROLE_EQUAL, "Default role, full access - OFPCR_ROLE_EQUAL");
     TYPE_ARRAY_ADD(ofp_controller_role, OFPCR_ROLE_MASTER, "Full access, at most one master - OFPCR_ROLE_MASTER");
     TYPE_ARRAY_ADD(ofp_controller_role, OFPCR_ROLE_SLAVE, "Read-only access - OFPCR_ROLE_SLAVE");
+
+    // ofp_controller_role_reason
+    TYPE_ARRAY(ofp_controller_role_reason);
+    TYPE_ARRAY_ADD(ofp_controller_role_reason, OFPCRR_MASTER_REQUEST, "Another controller asked to be master - OFPCRR_MASTER_REQUEST");
+    TYPE_ARRAY_ADD(ofp_controller_role_reason, OFPCRR_CONFIG, "Configuration changed on the switch - OFPCRR_CONFIG");
+    TYPE_ARRAY_ADD(ofp_controller_role_reason, OFPCRR_EXPERIMENTER, "Experimenter data changed - OFPCRR_EXPERIMENTER");
 
     // ofp_packet_in_reason
     TYPE_ARRAY(ofp_packet_in_reason);

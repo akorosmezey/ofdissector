@@ -66,6 +66,7 @@ namespace openflow_140 {
         void dissect_ofp_get_async_reply();
         void dissect_ofp_meter_mod();
         void dissect_ofp_meter_band(proto_tree* parent);
+        void dissect_ofp_role_status();
 
         dissector_handle_t mDataHandle;
         dissector_handle_t mOpenflowHandle;
@@ -100,6 +101,7 @@ namespace openflow_140 {
         GArray* ofp_group_mod_command;
         GArray* ofp_group_type;
         GArray* ofp_controller_role;
+        GArray* ofp_controller_role_reason;
         GArray* ofp_packet_in_reason;
         GArray* ofp_flow_removed_reason;
         GArray* ofp_port_reason;

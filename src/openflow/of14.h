@@ -1397,6 +1397,13 @@ enum ofp_controller_role {
     OFPCR_ROLE_SLAVE = 3,    /* Read-only access. */
 };
 
+/* What changed about the controller role */
+enum ofp_controller_role_reason {
+    OFPCRR_MASTER_REQUEST = 0, /* Another controller asked to be master. */
+    OFPCRR_CONFIG = 1,         /* Configuration changed on the switch. */
+    OFPCRR_EXPERIMENTER = 2,   /* Experimenter data changed. */
+};
+
 /* Asynchronous message configuration. */
 struct ofp_async_config {
     struct ofp_header header; /* OFPT_GET_ASYNC_REPLY or OFPT_SET_ASYNC. */
