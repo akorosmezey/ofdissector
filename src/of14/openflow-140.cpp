@@ -1302,6 +1302,11 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_type, OFPT_GET_ASYNC_REPLY, "Async reply (CSM) - OFPT_GET_ASYNC_REPLY");
     TYPE_ARRAY_ADD(ofp_type, OFPT_SET_ASYNC, "Set async (CSM) - OFPT_SET_ASYNC");
     TYPE_ARRAY_ADD(ofp_type, OFPT_METER_MOD, "Meter Mod (CSM) - OFPT_METER_MOD");
+    TYPE_ARRAY_ADD(ofp_type, OFPT_ROLE_STATUS, "Role Status (AM) - OFPT_ROLE_STATUS");
+    TYPE_ARRAY_ADD(ofp_type, OFPT_TABLE_STATUS, "Table Status (AM) - OFPT_TABLE_STATUS");
+    TYPE_ARRAY_ADD(ofp_type, OFPT_REQUESTFORWARD, "Request Forward (AM) - OFPT_REQUESTFORWARD");
+    TYPE_ARRAY_ADD(ofp_type, OFPT_BUNDLE_CONTROL, "Bundle Control - OFPT_BUNDLE_CONTROL");
+    TYPE_ARRAY_ADD(ofp_type, OFPT_BUNDLE_ADD_MESSAGE, "Bundle Add Message - OFPT_BUNDLE_ADD_MESSAGE");
 
     // ofp_port_no
     TYPE_ARRAY(ofp_port_no);

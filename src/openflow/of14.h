@@ -91,6 +91,15 @@ enum ofp_type {
     OFPT_SET_ASYNC = 28, /* Controller/switch message */
     /* Meters and rate limiters configuration messages. */
     OFPT_METER_MOD = 29, /* Controller/switch message */
+    /* Controller role change event messages. */
+    OFPT_ROLE_STATUS = 30, /* Async message */
+    /* Asynchronous messages. */
+    OFPT_TABLE_STATUS = 31, /* Async message */
+    /* Request forwarding by the switch. */
+    OFPT_REQUESTFORWARD = 32, /* Async message */
+    /* Bundle operations (multiple messages as a single operation). */
+    OFPT_BUNDLE_CONTROL = 33,
+    OFPT_BUNDLE_ADD_MESSAGE = 34,
 };
 
 /* OFPT_HELLO.  This message has an empty body, but implementations must
