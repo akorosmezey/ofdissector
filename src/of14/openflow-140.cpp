@@ -252,11 +252,6 @@ void DissectorContext::dispatchMessage(tvbuff_t *tvb, packet_info *pinfo, proto_
                 case OFPT_BARRIER_REPLY:
                     break;
 
-                case OFPT_QUEUE_GET_CONFIG_REQUEST:
-                case OFPT_QUEUE_GET_CONFIG_REPLY:
-                    IGNORE; // Not yet implemented
-                    break;
-
                 case OFPT_ROLE_REQUEST:
                 case OFPT_ROLE_REPLY:
                     this->dissect_ofp_role_request();
@@ -379,7 +374,7 @@ void DissectorContext::dissect_ofp_table_feature_prop(proto_tree* parent) {
             this->dissect_ofp_instruction(tree);
     }
     else if (type == OFPTFPT_NEXT_TABLES || type == OFPTFPT_NEXT_TABLES_MISS) {
-        guint32 end = this->_offset - sizeof(struct ofp_table_feature_prop_next_tables) + length;
+        guint32 end = this->_offset - sizeof(struct ofp_table_feature_prop_tables) + length;
         while (this->_offset < end) {
             ADD_CHILD(tree, "ofp_table_feature_prop_next_tables.next_table_ids", 1);
         }
@@ -1151,13 +1146,13 @@ void DissectorContext::setupFields() {
 
     // ofp_multipart_request
     TREE_FIELD("ofp_multipart_request", "Multipart request");
-    FIELD("ofp_multipart_request.type", "Type", FT_UINT16, BASE_DEC, VALUES(ofp_multipart_types), NO_MASK);
+    FIELD("ofp_multipart_request.type", "Type", FT_UINT16, BASE_DEC, VALUES(ofp_multipart_type), NO_MASK);
     BITMAP_FIELD("ofp_multipart_request.flags", "Flags", FT_UINT16);
     FIELD("ofp_multipart_request.body", "Body", FT_BYTES, BASE_NONE, NO_VALUES, NO_MASK);
 
     // ofp_multipart_reply
     TREE_FIELD("ofp_multipart_reply", "Multipart reply");
-    FIELD("ofp_multipart_reply.type", "Type", FT_UINT16, BASE_DEC, VALUES(ofp_multipart_types), NO_MASK);
+    FIELD("ofp_multipart_reply.type", "Type", FT_UINT16, BASE_DEC, VALUES(ofp_multipart_type), NO_MASK);
     BITMAP_FIELD("ofp_multipart_reply.flags", "Flags", FT_UINT16);
     FIELD("ofp_multipart_reply.body", "Body", FT_BYTES, BASE_NONE, NO_VALUES, NO_MASK);
 
@@ -1319,8 +1314,6 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_type, OFPT_MULTIPART_REPLY, "Multipart reply (CSM) - OFPT_MULTIPART_REPLY");
     TYPE_ARRAY_ADD(ofp_type, OFPT_BARRIER_REQUEST, "Barrier request (CSM) - OFPT_BARRIER_REQUEST");
     TYPE_ARRAY_ADD(ofp_type, OFPT_BARRIER_REPLY, "Stats reply (CSM) - OFPT_BARRIER_REPLY");
-    TYPE_ARRAY_ADD(ofp_type, OFPT_QUEUE_GET_CONFIG_REQUEST, "Queue get config request (CSM) - OFPT_QUEUE_GET_CONFIG_REQUEST");
-    TYPE_ARRAY_ADD(ofp_type, OFPT_QUEUE_GET_CONFIG_REPLY, "Queue get config reply (CSM) - OFPT_QUEUE_GET_CONFIG_REPLY");
     TYPE_ARRAY_ADD(ofp_type, OFPT_ROLE_REQUEST, "Role request (CSM) - OFPT_ROLE_REQUEST");
     TYPE_ARRAY_ADD(ofp_type, OFPT_ROLE_REPLY, "Role reply (CSM) - OFPT_ROLE_REPLY");
     TYPE_ARRAY_ADD(ofp_type, OFPT_GET_ASYNC_REQUEST, "Async request (CSM) - OFPT_GET_ASYNC_REQUEST");
@@ -1344,12 +1337,6 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_port_no, OFPP_CONTROLLER, "Send to controller - OFPP_CONTROLLER");
     TYPE_ARRAY_ADD(ofp_port_no, OFPP_LOCAL, "Local openflow \"port\" - OFPP_LOCAL");
     TYPE_ARRAY_ADD(ofp_port_no, OFPP_ANY, "Any port. For flow mod (delete) and flow stats requests only - OFPP_ANY");
-
-    // ofp_queue_properties
-    TYPE_ARRAY(ofp_queue_properties);
-    TYPE_ARRAY_ADD(ofp_queue_properties, OFPQT_MIN_RATE, "Minimum datarate guaranteed - OFPQT_MIN_RATE");
-    TYPE_ARRAY_ADD(ofp_queue_properties, OFPQT_MAX_RATE, "Maximum datarate - OFPQT_MAX_RATE");
-    TYPE_ARRAY_ADD(ofp_queue_properties, OFPQT_EXPERIMENTER, "Experimenter defined property - OFPQT_EXPERIMENTER");
 
     // ofp_match_type
     TYPE_ARRAY(ofp_match_type);
@@ -1493,9 +1480,12 @@ void DissectorContext::setupCodes(void) {
 
     // ofp_packet_in_reason
     TYPE_ARRAY(ofp_packet_in_reason);
-    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_NO_MATCH, "No matching flow - OFPR_NO_MATCH");
-    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_ACTION, "Action explicitly output to controller - OFPR_ACTION");
-    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_INVALID_TTL, "Packet has invalid TTL - OFPR_INVALID_TTL");
+    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_TABLE_MISS, "No matching flow (table-miss flow entry)");
+    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_APPLY_ACTION, "Output to controller in apply-actions");
+    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_INVALID_TTL, "Packet has invalid TTL");
+    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_ACTION_SET, "Output to controller in action set");
+    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_GROUP, "Output to controller in group bucket");
+    TYPE_ARRAY_ADD(ofp_packet_in_reason, OFPR_PACKET_OUT, "Output to controller in packet-out");
 
     // ofp_flow_removed_reason
     TYPE_ARRAY(ofp_flow_removed_reason);
@@ -1637,23 +1627,22 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_table_mod_failed_code, OFPTMFC_BAD_CONFIG, "Specified config is invalid - OFPTMFC_BAD_CONFIG");
     TYPE_ARRAY_ADD(ofp_table_mod_failed_code, OFPTMFC_EPERM, "Permissions error - OFPTMFC_EPERM");
 
-    // ofp_multipart_types
-    TYPE_ARRAY(ofp_multipart_types);
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_DESC, "Description of this OpenFlow switch - OFPMP_DESC");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_FLOW, "Individual flow statistics - OFPMP_FLOW");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_AGGREGATE, "Aggregate flow statistics - OFPMP_AGGREGATE");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_TABLE, "Flow table statistics - OFPMP_TABLE");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_PORT_STATS, "Port statistics - OFPMP_PORT_STATS");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_QUEUE, "Queue statistics for a port - OFPMP_QUEUE");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_GROUP, "Group counter statistics - OFPMP_GROUP");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_GROUP_DESC, "Group description statistics - OFPMP_GROUP_DESC");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_GROUP_FEATURES, "Group features - OFPMP_GROUP_FEATURES");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_METER, "Meter statistics - OFPMP_METER");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_METER_CONFIG, "Meter configuration - OFPMP_METER_CONFIG");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_METER_FEATURES, "Meter features - OFPMP_METER_FEATURES");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_TABLE_FEATURES, "Table features - OFPMP_TABLE_FEATURES");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_PORT_DESC, "Port description - OFPMP_PORT_DESC");
-    TYPE_ARRAY_ADD(ofp_multipart_types, OFPMP_EXPERIMENTER, "Experimenter extension - OFPMP_EXPERIMENTER");
+    // ofp_multipart_type
+    TYPE_ARRAY(ofp_multipart_type);
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_DESC, "Description of this OpenFlow switch - OFPMP_DESC");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_FLOW, "Individual flow statistics - OFPMP_FLOW");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_AGGREGATE, "Aggregate flow statistics - OFPMP_AGGREGATE");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_TABLE, "Flow table statistics - OFPMP_TABLE");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_PORT_STATS, "Port statistics - OFPMP_PORT_STATS");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_GROUP, "Group counter statistics - OFPMP_GROUP");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_GROUP_DESC, "Group description statistics - OFPMP_GROUP_DESC");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_GROUP_FEATURES, "Group features - OFPMP_GROUP_FEATURES");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_METER, "Meter statistics - OFPMP_METER");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_METER_CONFIG, "Meter configuration - OFPMP_METER_CONFIG");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_METER_FEATURES, "Meter features - OFPMP_METER_FEATURES");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_TABLE_FEATURES, "Table features - OFPMP_TABLE_FEATURES");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_PORT_DESC, "Port description - OFPMP_PORT_DESC");
+    TYPE_ARRAY_ADD(ofp_multipart_type, OFPMP_EXPERIMENTER, "Experimenter extension - OFPMP_EXPERIMENTER");
 
     // ofp_table_feature_prop_type
     TYPE_ARRAY(ofp_table_feature_prop_type);
@@ -1684,7 +1673,7 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY(ofp_switch_config_failed_code);
     TYPE_ARRAY_ADD(ofp_switch_config_failed_code, OFPSCFC_BAD_FLAGS, "Specified flags is invalid - OFPSCFC_BAD_FLAGS");
     TYPE_ARRAY_ADD(ofp_switch_config_failed_code, OFPSCFC_BAD_LEN, "Specified len is invalid - OFPSCFC_BAD_LEN");
-    TYPE_ARRAY_ADD(ofp_switch_config_failed_code, OFPQCFC_EPERM, "Permissions error - OFPQCFC_EPERM");
+    TYPE_ARRAY_ADD(ofp_switch_config_failed_code, OFPSCFC_EPERM, "Permissions error - OFPQCFC_EPERM");
 
     // ofp_role_request_failed_code
     TYPE_ARRAY(ofp_role_request_failed_code);
@@ -1767,7 +1756,6 @@ void DissectorContext::setupFlags(void) {
     // ofp_config_flags
     BITMAP_PART("ofp_config_flags.OFPC_FRAG_DROP", "Drop fragments", 16, OFPC_FRAG_DROP);
     BITMAP_PART("ofp_config_flags.OFPC_FRAG_REASM", "Reassemble (only if OFPC_IP_REASM set)", 16, OFPC_FRAG_REASM);
-    BITMAP_PART("ofp_config_flags.OFPC_INVALID_TTL_TO_CONTROLLER", "Send packets with invalid TTL to the controller", 16, OFPC_INVALID_TTL_TO_CONTROLLER);
     BITMAP_PART("ofp_config_flags.RESERVED", "Reserved", 16, 0xfff8);
 
     // ofp_table_config
@@ -1788,10 +1776,13 @@ void DissectorContext::setupFlags(void) {
     BITMAP_PART("ofp_group_capabilities.RESERVED", "Reserved", 32, 0xfffffff0);
 
     // ofp_packet_in_reason_bitmask
-    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_NO_MATCH", "No matching flow", 32, 1 << OFPR_NO_MATCH);
-    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_ACTION", "Action explicitly output to controller", 32, 1 << OFPR_ACTION);
+    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_TABLE_MISS", "No matching flow (table-miss flow entry).", 32, 1 << OFPR_TABLE_MISS);
+    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_APPLY_ACTION", "Output to controller in apply-actions.", 32, 1 << OFPR_APPLY_ACTION);
     BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_INVALID_TTL", "Packet has invalid TTL", 32, 1 << OFPR_INVALID_TTL);
-    BITMAP_PART("ofp_packet_in_reason_bitmask.RESERVED", "Reserved", 32, 0xfffffff8);
+    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_ACTION_SET", "Output to controller in action set.", 32, 1 << OFPR_ACTION_SET);
+    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_GROUP", "Output to controller in group bucket.", 32, 1 << OFPR_GROUP);
+    BITMAP_PART("ofp_packet_in_reason_bitmask.OFPR_PACKET_OUT", "Output to controller in packet-out.", 32, 1 << OFPR_PACKET_OUT);
+    BITMAP_PART("ofp_packet_in_reason_bitmask.RESERVED", "Reserved", 32, 0xffffffe0);
 
     // ofp_flow_removed_reason_bitmask
     BITMAP_PART("ofp_flow_removed_reason_bitmask.OFPRR_IDLE_TIMEOUT", "Flow idle time exceeded idle_timeout", 32, 1 << OFPRR_IDLE_TIMEOUT);

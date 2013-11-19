@@ -115,7 +115,7 @@ namespace openflow_140 {
         GArray* ofp_group_mod_failed_code;
         GArray* ofp_port_mod_failed_code;
         GArray* ofp_table_mod_failed_code;
-        GArray* ofp_multipart_types;
+        GArray* ofp_multipart_type;
         GArray* ofp_table_feature_prop_type;
         GArray* ofp_queue_op_failed_code;
         GArray* ofp_switch_config_failed_code;
