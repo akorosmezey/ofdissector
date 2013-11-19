@@ -520,6 +520,11 @@ void DissectorContext::dissect_ofp_multipart_reply() {
                 this->dissect_ofp_table_features(tree);
             }
             break;
+        case OFPMP_PORT_DESC:
+	    while ((this->_oflen - this->_offset) > 0) {
+                this->dissect_ofp_port(tree);
+            }
+	    break;
         default:
             ADD_CHILD(tree, "ofp_multipart_reply.body", this->_oflen - this->_offset);
             break;
@@ -647,7 +652,9 @@ void DissectorContext::dissect_ofp_port(proto_tree* parent) {
     ADD_SUBTREE(tree, parent, "ofp_port", 64);
 
     ADD_CHILD(tree, "ofp_port.num", 4);
-    ADD_CHILD(tree, "padding", 4);
+    READ_UINT16(length);
+    this->_offset += 2;
+    ADD_CHILD(tree, "padding", 2);
     ADD_CHILD(tree, "ofp_port.hwaddr", 6);
     ADD_CHILD(tree, "padding", 2);
     ADD_CHILD(tree, "ofp_port.name", 16);
@@ -669,20 +676,52 @@ void DissectorContext::dissect_ofp_port(proto_tree* parent) {
     ADD_BOOLEAN(state_tree, "ofp_port_state.OFPPS_LIVE", 4, ofpps);
     CONSUME_BYTES(4);
 
-    ADD_SUBTREE(curr_feats_tree, tree, "ofp_port.curr_feats", 4);
-    dissectOFPPF(curr_feats_tree);
+    guint32 end = this->_offset - sizeof(struct ofp_port) + length;
+    while (this->_offset < end) {
+        dissect_ofp_port_desc_prop(tree);
+    }
+}
 
-    ADD_SUBTREE(advertised_tree, tree, "ofp_port.advertised", 4);
-    dissectOFPPF(advertised_tree);
+void DissectorContext::dissect_ofp_port_desc_prop(proto_tree *parent) {
+    READ_UINT16(type);
+    this->_offset += 2; // read ahead
+    READ_UINT16(length);
+    this->_offset -= 2;
 
-    ADD_SUBTREE(supported_tree, tree, "ofp_port.supported", 4);
-    dissectOFPPF(supported_tree);
+    ADD_SUBTREE(tree, parent, "ofp_port_desc_prop", length + OFP_MATCH_OXM_PADDING(length));
+    proto_item_set_text(tree, "%s",
+			val_to_str(type, (value_string*) this->ofp_port_desc_prop_type->data,
+				   "Unknown property type (0x%02x)"));
+    ADD_CHILD(tree, "ofp_port_desc_prop.type", 2);
+    ADD_CHILD(tree, "ofp_port_desc_prop.length", 2);
 
-    ADD_SUBTREE(peer_tree, tree, "ofp_port.peer", 4);
-    dissectOFPPF(peer_tree);
+    switch (type) {
+        case OFPPDPT_ETHERNET: {
+            ADD_CHILD(tree, "padding", 4);
 
-    ADD_CHILD(tree, "ofp_port.curr_speed", 4);
-    ADD_CHILD(tree, "ofp_port.max_speed", 4);
+            ADD_SUBTREE(curr_feats_tree, tree, "ofp_port.curr_feats", 4);
+            dissectOFPPF(curr_feats_tree);
+
+            ADD_SUBTREE(advertised_tree, tree, "ofp_port.advertised", 4);
+            dissectOFPPF(advertised_tree);
+
+            ADD_SUBTREE(supported_tree, tree, "ofp_port.supported", 4);
+            dissectOFPPF(supported_tree);
+
+            ADD_SUBTREE(peer_tree, tree, "ofp_port.peer", 4);
+            dissectOFPPF(peer_tree);
+
+            ADD_CHILD(tree, "ofp_port.curr_speed", 4);
+            ADD_CHILD(tree, "ofp_port.max_speed", 4);
+
+            break;
+        }
+	// TODO: support OFPPDPT_OPTICAL
+        default:
+            CONSUME_BYTES(length);
+    }
+
+    ADD_CHILD(tree, "padding", OFP_MATCH_OXM_PADDING(length));
 }
 
 void DissectorContext::dissectOFPPF (proto_tree *tree) {
@@ -1102,6 +1141,12 @@ void DissectorContext::setupFields() {
     FIELD("ofp_port.name", "Name", FT_STRING, BASE_NONE, NO_VALUES, NO_MASK);
     BITMAP_FIELD("ofp_port.config", "Config", FT_UINT32);
     BITMAP_FIELD("ofp_port.state", "State", FT_UINT32);
+
+    // Port properties
+    TREE_FIELD("ofp_port_desc_prop", "Port Property");
+    FIELD("ofp_port_desc_prop.type", "Type", FT_UINT16, BASE_DEC, VALUES(ofp_port_desc_prop_type), NO_MASK);
+    FIELD("ofp_port_desc_prop.length", "Length", FT_UINT16, BASE_DEC, NO_VALUES, NO_MASK);
+
     BITMAP_FIELD("ofp_port.curr_feats", "Current Features", FT_UINT32);
     BITMAP_FIELD("ofp_port.advertised", "Advertised Features", FT_UINT32);
     BITMAP_FIELD("ofp_port.supported", "Supported Features", FT_UINT32);
@@ -1337,6 +1382,12 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_port_no, OFPP_CONTROLLER, "Send to controller - OFPP_CONTROLLER");
     TYPE_ARRAY_ADD(ofp_port_no, OFPP_LOCAL, "Local openflow \"port\" - OFPP_LOCAL");
     TYPE_ARRAY_ADD(ofp_port_no, OFPP_ANY, "Any port. For flow mod (delete) and flow stats requests only - OFPP_ANY");
+
+    // ofp_port_desc_prop_type
+    TYPE_ARRAY(ofp_port_desc_prop_type);
+    TYPE_ARRAY_ADD(ofp_port_desc_prop_type, OFPPDPT_ETHERNET, "Ethernet property - OFPPDPT_ETHERNET");
+    TYPE_ARRAY_ADD(ofp_port_desc_prop_type, OFPPDPT_OPTICAL, "Optical property - OFPPDPT_OPTICAL");
+    TYPE_ARRAY_ADD(ofp_port_desc_prop_type, OFPPDPT_EXPERIMENTER, "Experimenter property - OFPPDPT_EXPERIMENTER");
 
     // ofp_match_type
     TYPE_ARRAY(ofp_match_type);
