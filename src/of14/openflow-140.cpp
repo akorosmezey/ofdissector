@@ -1443,6 +1443,7 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(oxm_ofb_match_fields, OFPXMT_OFB_PBB_ISID, "PBB I-SID - OFPXMT_OFB_PBB_ISID");
     TYPE_ARRAY_ADD(oxm_ofb_match_fields, OFPXMT_OFB_TUNNEL_ID, "Logical Port Metadata - OFPXMT_OFB_TUNNEL_ID");
     TYPE_ARRAY_ADD(oxm_ofb_match_fields, OFPXMT_OFB_IPV6_EXTHDR, "IPv6 Extension Header pseudo-field - OFPXMT_OFB_IPV6_EXTHDR");
+    TYPE_ARRAY_ADD(oxm_ofb_match_fields, OFPXMT_OFB_PBB_UCA, "PBB UCA header field - OFPXMT_OFB_PBB_UCA");
 
     // ofp_vlan_id
     TYPE_ARRAY(ofp_vlan_id);
