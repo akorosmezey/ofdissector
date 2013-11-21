@@ -236,6 +236,9 @@ void DissectorContext::dispatchMessage(tvbuff_t *tvb, packet_info *pinfo, proto_
                     break;
 
                 case OFPT_PORT_MOD:
+                    this->dissect_ofp_port_mod();
+                    break;
+
                 case OFPT_TABLE_MOD:
                     this->dissect_ofp_table_mod();
                     break;
@@ -634,6 +637,64 @@ void DissectorContext::dissectGroupMod() {
     catch (const ZeroLenBucket &e) {
         return;
     }
+}
+
+void DissectorContext::dissect_ofp_port_mod() {
+    ADD_TREE(tree, "ofp_port_mod");
+
+    ADD_CHILD(tree, "ofp_port_mod.num", 4);
+    CONSUME_BYTES(4);
+    ADD_CHILD(tree, "ofp_port_mod.hwaddr", 6);
+    CONSUME_BYTES(2);
+
+    ADD_SUBTREE(config_tree, tree, "ofp_port_mod.config", 4);
+    READ_UINT32(ofppc_config);
+    ADD_BOOLEAN(config_tree, "ofp_port_config.RESERVED", 4, ofppc_config);
+    ADD_BOOLEAN(config_tree, "ofp_port_config.OFPPC_PORT_DOWN", 4, ofppc_config);
+    ADD_BOOLEAN(config_tree, "ofp_port_config.OFPPC_NO_RECV", 4, ofppc_config);
+    ADD_BOOLEAN(config_tree, "ofp_port_config.OFPPC_NO_FWD", 4, ofppc_config);
+    ADD_BOOLEAN(config_tree, "ofp_port_config.OFPPC_NO_PACKET_IN", 4, ofppc_config);
+    CONSUME_BYTES(4);
+
+    ADD_SUBTREE(mask_tree, tree, "ofp_port_mod.mask", 4);
+    READ_UINT32(ofppc_mask);
+    ADD_BOOLEAN(mask_tree, "ofp_port_config.RESERVED", 4, ofppc_mask);
+    ADD_BOOLEAN(mask_tree, "ofp_port_config.OFPPC_PORT_DOWN", 4, ofppc_mask);
+    ADD_BOOLEAN(mask_tree, "ofp_port_config.OFPPC_NO_RECV", 4, ofppc_mask);
+    ADD_BOOLEAN(mask_tree, "ofp_port_config.OFPPC_NO_FWD", 4, ofppc_mask);
+    ADD_BOOLEAN(mask_tree, "ofp_port_config.OFPPC_NO_PACKET_IN", 4, ofppc_mask);
+    CONSUME_BYTES(4);
+
+    while (this->_offset < this->_oflen) {
+        dissect_ofp_port_mod_prop(tree);
+    }
+}
+
+void DissectorContext::dissect_ofp_port_mod_prop(proto_tree *parent) {
+    READ_UINT16(type);
+    this->_offset += 2; // read ahead
+    READ_UINT16(length);
+    this->_offset -= 2;
+
+    ADD_SUBTREE(tree, parent, "ofp_port_mod_prop", length + OFP_MATCH_OXM_PADDING(length));
+    proto_item_set_text(tree, "%s",
+			val_to_str(type, (value_string*) this->ofp_port_mod_prop_type->data,
+				   "Unknown property type (0x%02x)"));
+    ADD_CHILD(tree, "ofp_port_mod_prop.type", 2);
+    ADD_CHILD(tree, "ofp_port_mod_prop.length", 2);
+
+    switch (type) {
+        case OFPPMPT_ETHERNET: {
+            ADD_SUBTREE(advertised_tree, tree, "ofp_port_mod_prop_ethernet.advertised", 4);
+            dissectOFPPF(advertised_tree);
+            break;
+        }
+        default:
+            // TODO: support OFPPMPT_OPTICAL
+            CONSUME_BYTES(length - 4);
+    }
+
+    ADD_CHILD(tree, "padding", OFP_MATCH_OXM_PADDING(length));
 }
 
 void DissectorContext::dissect_ofp_table_mod() {
@@ -1279,6 +1340,19 @@ void DissectorContext::setupFields() {
     FIELD("groupmod.bucket.watch_port", "Watch Port", FT_UINT32, BASE_DEC, NO_VALUES, NO_MASK);
     FIELD("groupmod.bucket.watch_group", "Watch Group", FT_UINT32, BASE_DEC, NO_VALUES, NO_MASK);
 
+    // ofp_port_mod
+    TREE_FIELD("ofp_port_mod", "Port Mod");
+    FIELD("ofp_port_mod.num", "Number", FT_UINT32, BASE_DEC, NO_VALUES, NO_MASK);
+    FIELD("ofp_port_mod.hwaddr", "Hardware Address", FT_ETHER, BASE_NONE, NO_VALUES, NO_MASK);
+    BITMAP_FIELD("ofp_port_mod.config", "Configuration", FT_UINT32);
+    BITMAP_FIELD("ofp_port_mod.mask", "Mask", FT_UINT32);
+
+    // Port mod properties
+    TREE_FIELD("ofp_port_mod_prop", "Port Mod Property");
+    FIELD("ofp_port_mod_prop.type", "Type", FT_UINT16, BASE_DEC, VALUES(ofp_port_mod_prop_type), NO_MASK);
+    FIELD("ofp_port_mod_prop.length", "Length", FT_UINT16, BASE_DEC, NO_VALUES, NO_MASK);
+    TREE_FIELD("ofp_port_mod_prop_ethernet.advertised", "Advertised features");
+
     // ofp_table_mod
     TREE_FIELD("ofp_table_mod", "Table Mod");
     FIELD("ofp_table_mod.id", "ID", FT_UINT8, BASE_DEC, NO_VALUES, NO_MASK);
@@ -1388,6 +1462,12 @@ void DissectorContext::setupCodes(void) {
     TYPE_ARRAY_ADD(ofp_port_desc_prop_type, OFPPDPT_ETHERNET, "Ethernet property - OFPPDPT_ETHERNET");
     TYPE_ARRAY_ADD(ofp_port_desc_prop_type, OFPPDPT_OPTICAL, "Optical property - OFPPDPT_OPTICAL");
     TYPE_ARRAY_ADD(ofp_port_desc_prop_type, OFPPDPT_EXPERIMENTER, "Experimenter property - OFPPDPT_EXPERIMENTER");
+
+    // ofp_port_mod_prop_type
+    TYPE_ARRAY(ofp_port_mod_prop_type);
+    TYPE_ARRAY_ADD(ofp_port_mod_prop_type, OFPPMPT_ETHERNET, "Ethernet property - OFPPMPT_ETHERNET");
+    TYPE_ARRAY_ADD(ofp_port_mod_prop_type, OFPPMPT_OPTICAL, "Optical property - OFPPMPT_OPTICAL");
+    TYPE_ARRAY_ADD(ofp_port_mod_prop_type, OFPPMPT_EXPERIMENTER, "Experimenter property - OFPPMPT_EXPERIMENTER");
 
     // ofp_match_type
     TYPE_ARRAY(ofp_match_type);

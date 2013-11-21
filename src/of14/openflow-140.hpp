@@ -50,6 +50,8 @@ namespace openflow_140 {
         void dissect_ofp_table_feature_prop(proto_tree* parent);
         void dissect_ofp_portStatus();
         void dissect_ofp_flow_mod();
+        void dissect_ofp_port_mod();
+        void dissect_ofp_port_mod_prop(proto_tree* parent);
         void dissect_ofp_table_mod();
         void dissectGroupMod();
         void dissect_ofp_match(proto_tree *parent);
@@ -88,7 +90,8 @@ namespace openflow_140 {
         // Generated code
         GArray* ofp_type;
         GArray* ofp_port_no;
-        GArray *ofp_port_desc_prop_type;
+        GArray* ofp_port_desc_prop_type;
+        GArray* ofp_port_mod_prop_type;
         GArray* ofp_match_type;
         GArray* ofp_oxm_class;
         GArray* oxm_ofb_match_fields;
