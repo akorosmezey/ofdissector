@@ -162,7 +162,17 @@ void DissectorContext::dispatchMessage(tvbuff_t *tvb, packet_info *pinfo, proto_
     this->_oflen = tvb_get_ntohs(this->_tvb, 2);
 
     col_clear(pinfo->cinfo, COL_INFO);
-    col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str(type, (value_string*) this->ofp_type->data, "Unknown Type (0x%02x)"));
+    // If it's a multipart message, display the subtype in the packet list.
+    if (type == OFPT_MULTIPART_REQUEST || type == OFPT_MULTIPART_REPLY) {
+        guint16 multipart_type = tvb_get_ntohs(this->_tvb, this->_offset + sizeof(struct ofp_header));
+        col_add_fstr(pinfo->cinfo, COL_INFO, "%s: %s",
+                     (type == OFPT_MULTIPART_REQUEST) ? "Request" : "Reply",
+                     val_to_str(multipart_type, (value_string*) this->ofp_multipart_type->data, "Unknown Type (0x%02x)"));
+    }
+    // Otherwise, use the plain type.
+    else {
+        col_add_fstr(pinfo->cinfo, COL_INFO, "%s", val_to_str(type, (value_string*) this->ofp_type->data, "Unknown Type (0x%02x)"));
+    }
 
     if (this->_tree) {
         this->_curOFPSubtree = this->mFM.addSubtree(tree, "data", this->_tvb, 0, -1);
